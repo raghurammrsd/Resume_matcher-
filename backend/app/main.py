@@ -99,10 +99,37 @@ def health_check():
         "embedding_model": settings.EMBEDDING_MODEL_NAME
     }
 
-@app.get("/")
-def root():
-    return {
-        "message": f"Welcome to {settings.PROJECT_NAME} API",
-        "docs_url": "/docs",
-        "api_v1": settings.API_V1_STR
-    }
+# Unified SPA static serving for single-container deployment
+FRONTEND_DIST = os.getenv(
+    "FRONTEND_DIST_DIR",
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "../../frontend/dist"))
+)
+if not os.path.exists(FRONTEND_DIST):
+    # Alternative Docker path
+    if os.path.exists("/app/frontend/dist"):
+        FRONTEND_DIST = "/app/frontend/dist"
+
+if os.path.exists(FRONTEND_DIST):
+    from fastapi.staticfiles import StaticFiles
+    from fastapi.responses import FileResponse
+
+    assets_dir = os.path.join(FRONTEND_DIST, "assets")
+    if os.path.exists(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str):
+        if full_path.startswith("api/") or full_path == "api" or full_path == "docs" or full_path == "openapi.json":
+            return {"error": "Endpoint not found"}
+        file_candidate = os.path.join(FRONTEND_DIST, full_path)
+        if full_path and os.path.isfile(file_candidate):
+            return FileResponse(file_candidate)
+        return FileResponse(os.path.join(FRONTEND_DIST, "index.html"))
+else:
+    @app.get("/")
+    def root():
+        return {
+            "message": f"Welcome to {settings.PROJECT_NAME} API",
+            "docs_url": "/docs",
+            "api_v1": settings.API_V1_STR
+        }
