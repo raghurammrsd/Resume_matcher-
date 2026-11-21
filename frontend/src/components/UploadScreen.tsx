@@ -37,15 +37,13 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({ job, onNavigate }) =
 
   useEffect(() => {
     fetchStatus();
-    // Auto-poll status every 1.5 seconds if processing
+    // Poll status every 2 seconds while on this tab
     const interval = setInterval(() => {
-      if (statusData && !statusData.is_complete && statusData.pending_resumes > 0) {
-        fetchStatus();
-      }
-    }, 1500);
+      fetchStatus();
+    }, 2000);
 
     return () => clearInterval(interval);
-  }, [job?.id, statusData?.pending_resumes]);
+  }, [job?.id]);
 
   const handleFiles = async (files: FileList | File[]) => {
     if (!job) return;
@@ -58,8 +56,12 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({ job, onNavigate }) =
       }
     }
 
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+
     if (validFiles.length === 0) {
-      alert('Please upload .pdf or .docx resumes only.');
+      alert('Please select .pdf or .docx resumes only.');
       return;
     }
 
