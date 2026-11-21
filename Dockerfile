@@ -17,18 +17,27 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+# Install lightweight CPU-only PyTorch (saves ~2GB and prevents 512MB RAM OOM)
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+
 COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN grep -v "^torch" requirements.txt > reqs_no_torch.txt && pip install --no-cache-dir -r reqs_no_torch.txt
+
+# Pre-download SentenceTransformer model weights at BUILD time so NO runtime downloads occur
+RUN python3 -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
 
 # Copy backend source
 COPY backend/ ./backend/
 
-# Copy built frontend assets
+# Pre-generate sample resumes during build so boot time is instant
+RUN python3 backend/data/generate_synthetic_resumes.py
+
+# Copy built frontend assets from Stage 1
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
 ENV PYTHONPATH=/app
-ENV PORT=8000
-EXPOSE 8000
+ENV PORT=10000
+EXPOSE 10000
 
-# Generate benchmark sample resumes if missing, then start server
-CMD ["sh", "-c", "python3 backend/data/generate_synthetic_resumes.py && uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Start server reading $PORT dynamically
+CMD ["python3", "-m", "backend.app.run"]

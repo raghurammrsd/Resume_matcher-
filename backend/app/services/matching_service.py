@@ -30,12 +30,24 @@ def match_resume_to_job(db: Session, job: Job, resume: Resume) -> MatchResult:
     skill_match_data = match_jd_skills(skill_reqs, resume_text)
     skill_score = skill_match_data["score"]
     
+    # Precompute resume chunks and vectors ONCE to maximize performance
+    from backend.app.services.text_cleaner import split_into_chunks
+    from backend.app.ml.embedding_service import encode_texts
+    resume_chunks = split_into_chunks(resume_text, max_chunk_size=120)
+    chunk_vectors = encode_texts(resume_chunks) if resume_chunks else None
+    
     # 3. Dimension B: Semantic Similarity on Role Scope & Core Requirements (25%)
     sem_context_reqs = [f"Role: {job.title}. {job.description[:220]}"]
     for r in job.requirements:
         if r.category in ["responsibility", "education"]:
             sem_context_reqs.append(r.requirement_text)
-    sem_score, sem_evidence = match_semantic_requirements(sem_context_reqs, resume_text, dimension_label="semantic")
+    sem_score, sem_evidence = match_semantic_requirements(
+        sem_context_reqs, 
+        resume_text, 
+        dimension_label="semantic",
+        precomputed_chunks=resume_chunks,
+        precomputed_chunk_vectors=chunk_vectors
+    )
     
     # 4. Dimension C: Relevant Experience (20%)
     experience_data = extract_experience(resume_text)
@@ -54,7 +66,13 @@ def match_resume_to_job(db: Session, job: Job, resume: Resume) -> MatchResult:
     
     # 6. Dimension E: Job Responsibility Alignment (10%)
     if resp_reqs:
-        resp_score, resp_evidence = match_semantic_requirements(resp_reqs, resume_text, dimension_label="responsibility")
+        resp_score, resp_evidence = match_semantic_requirements(
+            resp_reqs, 
+            resume_text, 
+            dimension_label="responsibility",
+            precomputed_chunks=resume_chunks,
+            precomputed_chunk_vectors=chunk_vectors
+        )
     else:
         resp_score, resp_evidence = sem_score, []
         

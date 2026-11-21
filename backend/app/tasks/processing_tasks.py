@@ -61,13 +61,14 @@ def process_single_resume_pipeline(resume_id: str):
     except Exception as e:
         logger.error(f"Unexpected error processing resume {resume_id}: {str(e)}", exc_info=True)
         try:
+            db.rollback()
             resume = db.query(Resume).filter(Resume.id == resume_id).first()
             if resume:
                 resume.status = "failed"
                 resume.error_message = f"Processing error: {str(e)}"
                 db.commit()
-        except Exception:
-            pass
+        except Exception as inner_e:
+            logger.error(f"Failed to record error state for resume {resume_id}: {inner_e}")
     finally:
         db.close()
 

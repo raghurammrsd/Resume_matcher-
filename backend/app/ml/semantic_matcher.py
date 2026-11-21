@@ -24,11 +24,13 @@ def calibrate_similarity_score(raw_cosine: float) -> float:
 def match_semantic_requirements(
     requirements: List[str], 
     resume_text: str,
-    dimension_label: str = "semantic"
+    dimension_label: str = "semantic",
+    precomputed_chunks: List[str] = None,
+    precomputed_chunk_vectors: np.ndarray = None
 ) -> Tuple[float, List[Dict[str, Any]]]:
     """
     Compares JD requirements against chunked resume text:
-    1. Splits resume into semantically rich chunks.
+    1. Splits resume into semantically rich chunks (or reuses precomputed).
     2. Encodes requirements and resume chunks.
     3. Finds best supporting resume chunk for each requirement.
     4. Computes calibrated similarity and attaches actual supporting text.
@@ -36,12 +38,12 @@ def match_semantic_requirements(
     if not requirements or not resume_text.strip():
         return 0.0, []
         
-    resume_chunks = split_into_chunks(resume_text, max_chunk_size=120)
+    resume_chunks = precomputed_chunks if precomputed_chunks is not None else split_into_chunks(resume_text, max_chunk_size=120)
     if not resume_chunks:
         return 0.0, []
         
     req_vectors = encode_texts(requirements)
-    chunk_vectors = encode_texts(resume_chunks)
+    chunk_vectors = precomputed_chunk_vectors if precomputed_chunk_vectors is not None else encode_texts(resume_chunks)
     
     evidence_items = []
     total_calibrated_score = 0.0

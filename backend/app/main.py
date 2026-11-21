@@ -84,6 +84,15 @@ def seed_benchmark_job():
                 db.add(JobRequirement(job_id=job.id, category="education", requirement_text=extracted["education_qualification"]))
             db.commit()
             logger.info(f"Successfully seeded benchmark job: {job.title} (ID: {job.id})")
+
+        # Pre-warm SentenceTransformer model in memory at server startup
+        try:
+            from backend.app.ml.model_loader import get_sentence_transformer
+            logger.info("Pre-warming SentenceTransformer embedding model at startup...")
+            get_sentence_transformer()
+            logger.info("SentenceTransformer model successfully warm in memory.")
+        except Exception as e:
+            logger.warning(f"Embedding model pre-warm non-critical notice: {e}")
     except Exception as e:
         logger.warning(f"Startup seeding warning: {e}")
     finally:
